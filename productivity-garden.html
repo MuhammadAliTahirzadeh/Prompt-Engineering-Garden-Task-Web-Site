@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Productivity Garden</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --soil:      #2c1f0e;
+    --soil-mid:  #3d2b14;
+    --soil-top:  #5a3e20;
+    --parchment: #f5eedc;
+    --ink:       #1a120a;
+    --moss:      #4a7c40;
+    --sage:      #7aad6a;
+    --fern:      #a8d49a;
+    --golden:    #c8860a;
+    --amber:     #f0b030;
+    --rust:      #8b3a1a;
+    --ash:       #6b6055;
+    --bark:      #7a5230;
+    --sky:       #d4e8c2;
+    --dead:      #5a4a38;
+  }
+
+  body {
+    background: var(--soil);
+    color: var(--parchment);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    overflow: hidden;
+    cursor: crosshair;
+  }
+
+  #header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px;
+    background: linear-gradient(to bottom, var(--soil) 60%, transparent);
+    pointer-events: none;
+  }
+  #header h1 {
+    font-family: 'Fraunces', serif;
+    font-size: 1.5rem;
+    font-weight: 300;
+    letter-spacing: 0.04em;
+    color: var(--fern);
+    pointer-events: all;
+  }
+  #header .hint {
+    font-size: 0.65rem;
+    color: var(--ash);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  #garden {
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 80% 40% at 50% 100%, var(--soil-mid) 0%, var(--soil) 70%),
+      repeating-linear-gradient(90deg, transparent 0px, transparent 39px, rgba(255,255,255,0.015) 39px, rgba(255,255,255,0.015) 40px),
+      repeating-linear-gradient(0deg,  transparent 0px, transparent 39px, rgba(255,255,255,0.015) 39px, rgba(255,255,255,0.015) 40px);
+  }
+  #garden::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0; right: 0; height: 70px;
+    background: linear-gradient(to top, var(--soil-top), transparent);
+    pointer-events: none;
+  }
+
+  .plant-wrap {
+    position: absolute;
+    transform: translate(-50%, -100%);
+    cursor: pointer;
+    user-select: none;
+    transition: filter 0.3s;
+  }
+  .plant-wrap:hover { filter: brightness(1.3); }
+  .plant-svg { display: block; }
+
+  .plant-label {
+    position: absolute;
+    bottom: -22px; left: 50%; transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 0.58rem;
+    color: var(--ash);
+    letter-spacing: 0.08em;
+    pointer-events: none;
+  }
+
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(20,12,4,0.75);
+    backdrop-filter: blur(4px);
+    animation: fadeIn 0.18s ease;
+  }
+  @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+
+  .modal {
+    background: var(--soil-mid);
+    border: 1px solid var(--bark);
+    border-radius: 4px;
+    padding: 32px 36px;
+    width: 340px; max-width: 92vw;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    animation: slideUp 0.22s cubic-bezier(.22,.68,0,1.2);
+    cursor: default;
+  }
+  @keyframes slideUp { from { transform: translateY(18px); opacity:0 } to { transform: none; opacity:1 } }
+
+  .modal h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 300; font-size: 1.25rem;
+    color: var(--fern); margin-bottom: 22px;
+  }
+
+  .modal label {
+    display: block;
+    font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ash); margin-bottom: 6px;
+  }
+
+  .modal input[type="text"] {
+    width: 100%;
+    background: var(--soil);
+    border: 1px solid var(--bark); border-radius: 3px;
+    color: var(--parchment);
+    font-family: 'DM Mono', monospace; font-size: 0.85rem;
+    padding: 9px 12px; outline: none;
+    transition: border-color 0.2s; margin-bottom: 20px;
+    cursor: text;
+  }
+  .modal input[type="text"]:focus { border-color: var(--sage); }
+
+  .duration-row { display: flex; gap: 8px; margin-bottom: 24px; }
+  .dur-btn {
+    flex: 1;
+    background: var(--soil);
+    border: 1px solid var(--bark); border-radius: 3px;
+    color: var(--ash);
+    font-family: 'DM Mono', monospace; font-size: 0.75rem;
+    padding: 8px 4px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .dur-btn:hover { border-color: var(--sage); color: var(--fern); }
+  .dur-btn.active { background: var(--moss); border-color: var(--sage); color: var(--parchment); }
+
+  .modal-actions { display: flex; gap: 10px; }
+
+  .btn-primary {
+    flex: 1; background: var(--moss); border: none; border-radius: 3px;
+    color: var(--parchment);
+    font-family: 'DM Mono', monospace; font-size: 0.8rem; letter-spacing: 0.06em;
+    padding: 10px; cursor: pointer; transition: background 0.15s;
+  }
+  .btn-primary:hover { background: var(--sage); color: var(--ink); }
+
+  .btn-secondary {
+    flex: 1; background: transparent;
+    border: 1px solid var(--bark); border-radius: 3px;
+    color: var(--ash);
+    font-family: 'DM Mono', monospace; font-size: 0.8rem;
+    padding: 10px; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-secondary:hover { border-color: var(--ash); color: var(--parchment); }
+
+  .detail-panel {
+    position: fixed; bottom: 24px; right: 24px; z-index: 150;
+    background: var(--soil-mid);
+    border: 1px solid var(--bark); border-radius: 4px;
+    padding: 20px 24px; width: 260px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    animation: slideUp 0.2s ease;
+    cursor: default;
+  }
+  .detail-panel h3 {
+    font-family: 'Fraunces', serif;
+    font-weight: 300; font-size: 1rem;
+    color: var(--fern); margin-bottom: 12px;
+    word-break: break-word;
+  }
+  .detail-row {
+    display: flex; justify-content: space-between;
+    font-size: 0.65rem; color: var(--ash);
+    letter-spacing: 0.06em; margin-bottom: 6px;
+  }
+  .detail-row span:last-child { color: var(--parchment); }
+  .detail-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+
+  .btn-complete {
+    background: var(--moss); border: none; border-radius: 3px;
+    color: var(--parchment);
+    font-family: 'DM Mono', monospace; font-size: 0.75rem;
+    padding: 9px; cursor: pointer; transition: background 0.15s;
+  }
+  .btn-complete:hover { background: var(--sage); color: var(--ink); }
+
+  .btn-close {
+    background: transparent; border: 1px solid var(--bark); border-radius: 3px;
+    color: var(--ash);
+    font-family: 'DM Mono', monospace; font-size: 0.75rem;
+    padding: 8px; cursor: pointer;
+  }
+  .btn-close:hover { color: var(--parchment); }
+
+  #statusbar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    display: flex; gap: 24px; align-items: center;
+    padding: 10px 28px;
+    background: linear-gradient(to top, var(--soil) 60%, transparent);
+    pointer-events: none;
+    font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ash);
+  }
+  #statusbar span b { color: var(--fern); font-weight: 500; }
+  #statusbar span.dead b { color: var(--rust); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+const STORAGE_KEY = 'productivity_garden_v1';
+const TICK_MS     = 4000;
+const DURATIONS   = [15, 30, 60];
+const PLANT_TYPES = ['sprout', 'flower', 'tree', 'cactus'];
+const STAGES      = [0, 0.2, 0.45, 0.7, 1.0];
+
+function generateId() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+function calcGrowthStage(plant, now) {
+  if (plant.isCompleted) return 4;
+  if (plant.isDead)      return plant.growthStage;
+  const total    = plant.deadline - plant.plantedAt;
+  const elapsed  = now - plant.plantedAt;
+  const fraction = Math.min(elapsed / total, 1);
+  for (let i = STAGES.length - 1; i >= 0; i--) {
+    if (fraction >= STAGES[i]) return i;
+  }
+  return 0;
+}
+
+function formatTimeLeft(plant, now) {
+  if (plant.isDead)      return 'məhv oldu';
+  if (plant.isCompleted) return 'tamamlandı ✓';
+  const ms = plant.deadline - now;
+  if (ms <= 0) return 'vaxt bitdi';
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  return m > 0 ? `${m}d ${s}s qaldı` : `${s}s qaldı`;
+}
+
+function loadPlants() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function savePlants(plants) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(plants)); } catch {}
+}
+
+/* ── SVG Plants ── */
+function PlantSVG({ type, stage, isDead, isCompleted }) {
+  const size = 40 + stage * 14;
+  const dead = isDead && !isCompleted;
+  const c1 = dead ? 'var(--dead)' : 'var(--moss)';
+  const c2 = dead ? '#4a3d2e'    : 'var(--sage)';
+  const c3 = dead ? '#3a2e20'    : 'var(--fern)';
+  const cs = dead ? '#3a2e1a'    : 'var(--bark)';
+  const w = size, h = size + 10;
+
+  if (type === 'flower') {
+    const petals = stage < 2 ? 0 : stage < 3 ? 4 : 6;
+    const pr = 5 + stage;
+    const cy0 = h - stage * 8 - 12;
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="plant-svg">
+        <line x1={w/2} y1={h} x2={w/2} y2={cy0} stroke={cs} strokeWidth="2.5" strokeLinecap="round"/>
+        {Array.from({length: petals}).map((_, i) => {
+          const angle = (i / petals) * Math.PI * 2;
+          const px = w/2 + Math.cos(angle) * (pr + 3);
+          const py = cy0 + Math.sin(angle) * (pr + 3);
+          return <ellipse key={i} cx={px} cy={py} rx={pr} ry={pr*0.6} fill={c2} opacity="0.85"
+                          transform={`rotate(${angle*180/Math.PI},${px},${py})`}/>;
+        })}
+        {stage >= 2 && <circle cx={w/2} cy={cy0} r={pr-1} fill={dead ? '#5a3a20' : 'var(--amber)'}/>}
+        {stage === 0 && <ellipse cx={w/2} cy={h-8} rx={4} ry={3} fill={c1}/>}
+      </svg>
+    );
+  }
+
+  if (type === 'cactus') {
+    const bh = 10 + stage * 8;
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="plant-svg">
+        <rect x={w/2-5} y={h-bh} width={10} height={bh} rx={5} fill={c1}/>
+        {stage >= 2 && <>
+          <rect x={w/2-16} y={h-bh+8} width={12} height={7} rx={4} fill={c1}/>
+          <rect x={w/2-16} y={h-bh+8} width={7} height={13} rx={4} fill={c1}/>
+        </>}
+        {stage >= 3 && <>
+          <rect x={w/2+4} y={h-bh+14} width={12} height={7} rx={4} fill={c1}/>
+          <rect x={w/2+9} y={h-bh+14} width={7} height={13} rx={4} fill={c1}/>
+        </>}
+        {stage === 4 && !dead && <circle cx={w/2} cy={h-bh-2} r={5} fill="var(--amber)"/>}
+        {stage === 0 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
+      </svg>
+    );
+  }
+
+  if (type === 'tree') {
+    const th = 8 + stage * 5;
+    const lr = 6 + stage * 5;
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="plant-svg">
+        {stage >= 1 && <rect x={w/2-3} y={h-th} width={6} height={th} rx={3} fill={cs}/>}
+        {stage >= 1 && <circle cx={w/2} cy={h-th-lr*0.7} r={lr} fill={c1}/>}
+        {stage >= 2 && <circle cx={w/2} cy={h-th-lr*1.4} r={lr*0.8} fill={c2}/>}
+        {stage >= 3 && <circle cx={w/2} cy={h-th-lr*2}   r={lr*0.6} fill={c3}/>}
+        {stage === 0 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
+      </svg>
+    );
+  }
+
+  /* sprout */
+  const sh = 6 + stage * 8;
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="plant-svg">
+      {stage >= 1 && <line x1={w/2} y1={h} x2={w/2} y2={h-sh} stroke={cs} strokeWidth="2.5" strokeLinecap="round"/>}
+      {stage >= 2 && <>
+        <ellipse cx={w/2-6} cy={h-sh+4} rx={7} ry={4} fill={c1} transform={`rotate(-30,${w/2-6},${h-sh+4})`}/>
+        <ellipse cx={w/2+6} cy={h-sh+8} rx={7} ry={4} fill={c2} transform={`rotate(30,${w/2+6},${h-sh+8})`}/>
+      </>}
+      {stage >= 3 && <>
+        <ellipse cx={w/2-8} cy={h-sh-2} rx={9} ry={5} fill={c2} transform={`rotate(-40,${w/2-8},${h-sh-2})`}/>
+        <ellipse cx={w/2+8} cy={h-sh+2} rx={9} ry={5} fill={c3} transform={`rotate(40,${w/2+8},${h-sh+2})`}/>
+      </>}
+      {stage >= 4 && <circle cx={w/2} cy={h-sh-6} r={6} fill={dead ? 'var(--dead)' : 'var(--amber)'}/>}
+      {stage === 0 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
+    </svg>
+  );
+}
+
+/* ── Plant ── */
+function Plant({ plant, now, onClick }) {
+  const stage = calcGrowthStage(plant, now);
+  const label = plant.title.length > 14 ? plant.title.slice(0, 13) + '…' : plant.title;
+  return (
+    <div
+      className="plant-wrap"
+      style={{ left: plant.position.x + '%', top: plant.position.y + '%' }}
+      onClick={e => { e.stopPropagation(); onClick(plant); }}
+      title={plant.title}
+    >
+      <PlantSVG type={plant.type} stage={stage} isDead={plant.isDead} isCompleted={plant.isCompleted}/>
+      <div className="plant-label">{label}</div>
+    </div>
+  );
+}
+
+/* ── Create Modal ── */
+function PlantModal({ onConfirm, onCancel }) {
+  const [title, setTitle]       = useState('');
+  const [duration, setDuration] = useState(30);
+  const inputRef = useRef(null);
+
+  useEffect(() => { inputRef.current && inputRef.current.focus(); }, []);
+
+  function submit() {
+    const t = title.trim();
+    if (!t) return;
+    onConfirm({ title: t, duration });
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter')  submit();
+    if (e.key === 'Escape') onCancel();
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <h2>Toxum ək</h2>
+        <label>Tapşırıq adı</label>
+        <input
+          ref={inputRef} type="text"
+          placeholder="nə əkirsən?"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          onKeyDown={handleKey}
+          maxLength={40}
+        />
+        <label>Müddət</label>
+        <div className="duration-row">
+          {DURATIONS.map(d => (
+            <button key={d} className={`dur-btn${duration === d ? ' active' : ''}`}
+                    onClick={() => setDuration(d)}>{d} dəq</button>
+          ))}
+        </div>
+        <div className="modal-actions">
+          <button className="btn-secondary" onClick={onCancel}>İmtina</button>
+          <button className="btn-primary"   onClick={submit}>Ək</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Detail Panel ── */
+function DetailPanel({ plant, now, onComplete, onClose }) {
+  const stage    = calcGrowthStage(plant, now);
+  const timeLeft = formatTimeLeft(plant, now);
+  return (
+    <div className="detail-panel" onClick={e => e.stopPropagation()}>
+      <h3>{plant.title}</h3>
+      <div className="detail-row"><span>NÖV</span><span>{plant.type}</span></div>
+      <div className="detail-row"><span>MƏRHƏLƏ</span><span>{stage} / 4</span></div>
+      <div className="detail-row"><span>VAXT</span><span>{timeLeft}</span></div>
+      <div className="detail-row">
+        <span>VƏZİYYƏT</span>
+        <span>{plant.isCompleted ? '✓ tamamlandı' : plant.isDead ? '✗ məhv oldu' : '◎ böyüyür'}</span>
+      </div>
+      <div className="detail-actions">
+        {!plant.isCompleted && !plant.isDead && (
+          <button className="btn-complete" onClick={() => onComplete(plant.id)}>✓ Tamamla</button>
+        )}
+        <button className="btn-close" onClick={onClose}>Bağla</button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Status Bar ── */
+function StatusBar({ plants }) {
+  const alive     = plants.filter(p => !p.isDead && !p.isCompleted).length;
+  const completed = plants.filter(p => p.isCompleted).length;
+  const dead      = plants.filter(p => p.isDead).length;
+  return (
+    <div id="statusbar">
+      <span>Cəmi: <b>{plants.length}</b></span>
+      <span>Böyüyür: <b>{alive}</b></span>
+      <span>Tamamlandı: <b>{completed}</b></span>
+      <span className="dead">Məhv: <b>{dead}</b></span>
+    </div>
+  );
+}
+
+/* ── App ── */
+function App() {
+  const [plants, setPlants]         = useState(() => loadPlants());
+  const [now, setNow]               = useState(Date.now());
+  const [pendingPos, setPendingPos] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
+
+  /* tick */
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), TICK_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  /* save */
+  useEffect(() => { savePlants(plants); }, [plants]);
+
+  /* update dead & stage on tick */
+  useEffect(() => {
+    setPlants(prev => prev.map(p => {
+      if (p.isCompleted || p.isDead) return p;
+      const newDead  = now > p.deadline;
+      const newStage = calcGrowthStage(p, now);
+      if (newDead !== p.isDead || newStage !== p.growthStage) {
+        return { ...p, isDead: newDead, growthStage: newStage };
+      }
+      return p;
+    }));
+  }, [now]);
+
+  const handleGardenClick = useCallback(e => {
+    if (e.target.closest('.plant-wrap') || e.target.closest('.detail-panel')) return;
+    setSelectedId(null);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width)  * 100;
+    const y = ((e.clientY - rect.top)  / rect.height) * 100;
+    setPendingPos({ x, y });
+  }, []);
+
+  const handleConfirm = useCallback(({ title, duration }) => {
+    if (!pendingPos) return;
+    const plantedAt = Date.now();
+    const deadline  = plantedAt + duration * 60 * 1000;
+    const type      = PLANT_TYPES[Math.floor(Math.random() * PLANT_TYPES.length)];
+    const newPlant = {
+      id: generateId(), type, title,
+      growthStage: 0, plantedAt, deadline,
+      isDead: false, isCompleted: false,
+      position: pendingPos,
+    };
+    setPlants(prev => [...prev, newPlant]);
+    setPendingPos(null);
+  }, [pendingPos]);
+
+  const handleComplete = useCallback(id => {
+    setPlants(prev => prev.map(p =>
+      p.id === id ? { ...p, isCompleted: true, isDead: false, growthStage: 4 } : p
+    ));
+  }, []);
+
+  const selectedPlant = selectedId ? plants.find(p => p.id === selectedId) || null : null;
+
+  return (
+    <>
+      <div id="header">
+        <h1>🌱 Productivity Garden</h1>
+        <span className="hint">Toxum əkmək üçün bağa klikləyin</span>
+      </div>
+
+      <div id="garden" onClick={handleGardenClick}>
+        {plants.map(plant => (
+          <Plant key={plant.id} plant={plant} now={now}
+                 onClick={p => setSelectedId(p.id)}/>
+        ))}
+      </div>
+
+      {pendingPos && (
+        <PlantModal
+          onConfirm={handleConfirm}
+          onCancel={() => setPendingPos(null)}
+        />
+      )}
+
+      {selectedPlant && (
+        <DetailPanel
+          plant={selectedPlant}
+          now={now}
+          onComplete={handleComplete}
+          onClose={() => setSelectedId(null)}
+        />
+      )}
+
+      <StatusBar plants={plants}/>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
