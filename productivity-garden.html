@@ -139,6 +139,32 @@
   }
   .modal input[type="text"]:focus { border-color: var(--sage); }
 
+  .modal input[type="number"] {
+    width: 100%;
+    background: var(--soil);
+    border: 1px solid var(--bark); border-radius: 3px;
+    color: var(--parchment);
+    font-family: 'DM Mono', monospace; font-size: 0.85rem;
+    padding: 9px 12px; outline: none;
+    transition: border-color 0.2s; margin-bottom: 20px;
+    cursor: text;
+    appearance: textfield;
+  }
+  .modal input[type="number"]:focus { border-color: var(--sage); }
+
+  .modal select {
+    width: 100%;
+    background: var(--soil);
+    border: 1px solid var(--bark); border-radius: 3px;
+    color: var(--parchment);
+    font-family: 'DM Mono', monospace; font-size: 0.85rem;
+    padding: 9px 12px; outline: none;
+    transition: border-color 0.2s; margin-bottom: 20px;
+    cursor: pointer;
+    appearance: none;
+  }
+  .modal select:focus { border-color: var(--sage); }
+
   .duration-row { display: flex; gap: 8px; margin-bottom: 24px; }
   .dur-btn {
     flex: 1;
@@ -202,6 +228,19 @@
   }
   .btn-complete:hover { background: var(--sage); color: var(--ink); }
 
+  .btn-delete {
+    background: transparent; border: 1px solid var(--rust); border-radius: 3px;
+    color: var(--rust);
+    font-family: 'DM Mono', monospace; font-size: 0.75rem;
+    padding: 9px; cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .btn-delete:hover {
+    background: rgba(139,58,26,0.18);
+    color: var(--parchment);
+    border-color: var(--amber);
+  }
+
   .btn-close {
     background: transparent; border: 1px solid var(--bark); border-radius: 3px;
     color: var(--ash);
@@ -230,10 +269,22 @@
 const { useState, useEffect, useCallback, useRef } = React;
 
 const STORAGE_KEY = 'productivity_garden_v1';
-const TICK_MS     = 4000;
-const DURATIONS   = [15, 30, 60];
-const PLANT_TYPES = ['sprout', 'flower', 'tree', 'cactus'];
-const STAGES      = [0, 0.2, 0.45, 0.7, 1.0];
+const TICK_MS     = 1200; // artımı daha hamar hiss etdirmək üçün
+const DURATIONS   = [15, 30, 60]; // köhnə funksiya üçün qalıb; məcburi deyil
+const PLANT_TYPES = [
+  'sprout',
+  'flower',
+  'tree',
+  'cactus',
+  'bush',
+  'vine',
+  'mushroom',
+  'succulent',
+  'palm',
+  'fern',
+  'grain',
+];
+// calcGrowthStage 0..4 aralığında "float" dəyər qaytarır
 
 function generateId() {
   return Math.random().toString(36).slice(2, 10);
@@ -242,13 +293,16 @@ function generateId() {
 function calcGrowthStage(plant, now) {
   if (plant.isCompleted) return 4;
   if (plant.isDead)      return plant.growthStage;
-  const total    = plant.deadline - plant.plantedAt;
+
+  const total   = plant.deadline - plant.plantedAt;
+  if (total <= 0) return 4;
+
   const elapsed  = now - plant.plantedAt;
-  const fraction = Math.min(elapsed / total, 1);
-  for (let i = STAGES.length - 1; i >= 0; i--) {
-    if (fraction >= STAGES[i]) return i;
-  }
-  return 0;
+  const fraction = Math.min(Math.max(elapsed / total, 0), 1); // 0..1
+  const stage    = 4 * fraction; // 0..4
+
+  // çox incə float dəyişiklikləri state update-ləri çoxaltmasın deyə kvantlaşdırırıq
+  return Math.round(stage * 20) / 20; // addım: 0.05
 }
 
 function formatTimeLeft(plant, now) {
@@ -274,7 +328,7 @@ function savePlants(plants) {
 
 /* ── SVG Plants ── */
 function PlantSVG({ type, stage, isDead, isCompleted }) {
-  const size = 40 + stage * 14;
+  const size = 48 + stage * 18; // bitkilər daha böyük olsun
   const dead = isDead && !isCompleted;
   const c1 = dead ? 'var(--dead)' : 'var(--moss)';
   const c2 = dead ? '#4a3d2e'    : 'var(--sage)';
@@ -283,7 +337,7 @@ function PlantSVG({ type, stage, isDead, isCompleted }) {
   const w = size, h = size + 10;
 
   if (type === 'flower') {
-    const petals = stage < 2 ? 0 : stage < 3 ? 4 : 6;
+    const petals = stage < 1 ? 0 : stage < 2 ? 2 : stage < 3 ? 4 : 6;
     const pr = 5 + stage;
     const cy0 = h - stage * 8 - 12;
     return (
@@ -297,7 +351,7 @@ function PlantSVG({ type, stage, isDead, isCompleted }) {
                           transform={`rotate(${angle*180/Math.PI},${px},${py})`}/>;
         })}
         {stage >= 2 && <circle cx={w/2} cy={cy0} r={pr-1} fill={dead ? '#5a3a20' : 'var(--amber)'}/>}
-        {stage === 0 && <ellipse cx={w/2} cy={h-8} rx={4} ry={3} fill={c1}/>}
+        {stage < 0.01 && <ellipse cx={w/2} cy={h-8} rx={4} ry={3} fill={c1}/>}
       </svg>
     );
   }
@@ -316,7 +370,7 @@ function PlantSVG({ type, stage, isDead, isCompleted }) {
           <rect x={w/2+9} y={h-bh+14} width={7} height={13} rx={4} fill={c1}/>
         </>}
         {stage === 4 && !dead && <circle cx={w/2} cy={h-bh-2} r={5} fill="var(--amber)"/>}
-        {stage === 0 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
+        {stage < 0.01 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
       </svg>
     );
   }
@@ -330,7 +384,186 @@ function PlantSVG({ type, stage, isDead, isCompleted }) {
         {stage >= 1 && <circle cx={w/2} cy={h-th-lr*0.7} r={lr} fill={c1}/>}
         {stage >= 2 && <circle cx={w/2} cy={h-th-lr*1.4} r={lr*0.8} fill={c2}/>}
         {stage >= 3 && <circle cx={w/2} cy={h-th-lr*2}   r={lr*0.6} fill={c3}/>}
-        {stage === 0 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
+        {stage < 0.01 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
+      </svg>
+    );
+  }
+
+  if (type === 'bush') {
+    const stemH = 6 + stage * 4;
+    const spread = 7 + stage * 4;
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="plant-svg">
+        {stage >= 1 && <rect x={w/2-3} y={h-stemH} width={6} height={stemH} rx={3} fill={cs}/>}
+        {stage >= 1 && (
+          <>
+            <ellipse cx={w/2} cy={h-stemH-4} rx={spread} ry={spread*0.55} fill={c1} opacity="0.92"/>
+            {stage >= 2 && <ellipse cx={w/2-spread*0.55} cy={h-stemH} rx={spread*0.45} ry={spread*0.32} fill={c2} opacity="0.88"/>}
+            {stage >= 2 && <ellipse cx={w/2+spread*0.55} cy={h-stemH+2} rx={spread*0.42} ry={spread*0.3} fill={c2} opacity="0.86"/>}
+            {stage >= 3 && <ellipse cx={w/2-spread*0.15} cy={h-stemH-8} rx={spread*0.34} ry={spread*0.26} fill={c3} opacity="0.86"/>}
+          </>
+        )}
+        {stage >= 4 && !dead && <circle cx={w/2+spread*0.22} cy={h-stemH-2} r={4} fill="var(--amber)"/>}
+        {stage < 0.01 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
+      </svg>
+    );
+  }
+
+  if (type === 'vine') {
+    const stem = 8 + stage * 6;
+    const leafY = h - stem + 2;
+    const curl = 6 + stage * 3;
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="plant-svg">
+        {stage >= 1 && (
+          <>
+            <path
+              d={`M ${w/2} ${h} C ${w/2+curl} ${h-stem*0.35}, ${w/2-curl} ${h-stem*0.75}, ${w/2} ${h-stem}`}
+              stroke={cs} strokeWidth="2.6" fill="none" strokeLinecap="round"
+            />
+            {stage >= 2 && <path d={`M ${w/2} ${leafY} C ${w/2-10} ${leafY+6}, ${w/2-8} ${leafY-2}, ${w/2-2} ${leafY-6}`} stroke={c1} strokeWidth="2.2" fill="none" strokeLinecap="round" opacity="0.95"/>}
+            {stage >= 2 && <path d={`M ${w/2} ${leafY+4} C ${w/2+10} ${leafY+2}, ${w/2+8} ${leafY+10}, ${w/2+2} ${leafY+6}`} stroke={c2} strokeWidth="2.2" fill="none" strokeLinecap="round" opacity="0.9"/>}
+            {stage >= 3 && <circle cx={w/2} cy={h-stem+4} r={5} fill={c3} opacity="0.7"/>}
+          </>
+        )}
+        {stage >= 4 && !dead && <circle cx={w/2+curl*0.7} cy={h-stem+1} r={4} fill="var(--amber)"/>}
+        {stage < 0.01 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
+      </svg>
+    );
+  }
+
+  if (type === 'mushroom') {
+    const capR = 7 + stage * 4;
+    const stemH = 8 + stage * 4;
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="plant-svg">
+        {stage >= 1 && <rect x={w/2-4} y={h-stemH} width={8} height={stemH} rx={4} fill={cs} opacity="0.95"/>}
+        {stage >= 1 && (
+          <>
+            <path
+              d={`M ${w/2-capR} ${h-stemH} Q ${w/2} ${h-stemH-capR*0.95} ${w/2+capR} ${h-stemH} Q ${w/2} ${h-stemH+capR*0.25} ${w/2-capR} ${h-stemH}`}
+              fill={dead ? '#5a3a20' : c2}
+              opacity="0.95"
+            />
+            {stage >= 2 && Array.from({ length: stage < 3 ? 3 : 6 }).map((_, i) => {
+              const angle = (i / (stage < 3 ? 3 : 6)) * Math.PI * 2;
+              const px = w/2 + Math.cos(angle) * capR * 0.45;
+              const py = h-stemH + Math.sin(angle) * capR * 0.18 - 2;
+              return <circle key={i} cx={px} cy={py} r={2} fill="rgba(245,238,220,0.55)"/>;
+            })}
+          </>
+        )}
+        {stage >= 4 && !dead && <rect x={w/2-3} y={h-stemH+3} width={6} height={4} rx={2} fill="var(--amber)" opacity="0.95"/>}
+        {stage < 0.01 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
+      </svg>
+    );
+  }
+
+  if (type === 'succulent') {
+    const rosette = 10 + stage * 4;
+    const leaves = stage < 2 ? 5 : stage < 3 ? 7 : stage < 4 ? 9 : 11;
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="plant-svg">
+        {stage >= 1 && <circle cx={w/2} cy={h-12} r={rosette*0.22} fill={dead ? '#3a2e20' : 'var(--amber)'} opacity="0.85"/>}
+        {stage >= 1 && Array.from({ length: leaves }).map((_, i) => {
+          const angle = (i / leaves) * Math.PI * 2;
+          const px = w/2 + Math.cos(angle) * rosette * 0.38;
+          const py = h-12 + Math.sin(angle) * rosette * 0.18;
+          const rx = 6 + stage * 0.8;
+          const ry = 3.8 + stage * 0.5;
+          const fill = i % 3 === 0 ? c1 : i % 3 === 1 ? c2 : c3;
+          return (
+            <ellipse
+              key={i}
+              cx={px}
+              cy={py}
+              rx={rx}
+              ry={ry}
+              fill={fill}
+              opacity={0.9}
+              transform={`rotate(${angle*180/Math.PI},${px},${py})`}
+            />
+          );
+        })}
+        {stage < 0.01 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
+      </svg>
+    );
+  }
+
+  if (type === 'palm') {
+    const trunkH = 10 + stage * 6;
+    const frondR = 10 + stage * 5;
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="plant-svg">
+        {stage >= 1 && <rect x={w/2-4} y={h-trunkH} width={8} height={trunkH} rx={4} fill={cs}/>}
+        {stage >= 1 && (
+          <>
+            {Array.from({ length: stage < 2 ? 3 : stage < 3 ? 4 : stage < 4 ? 5 : 6 }).map((_, i) => {
+              const t = i / (stage < 2 ? 3 : stage < 3 ? 4 : stage < 4 ? 5 : 6);
+              const ang = -80 + t * 160;
+              const x2 = w/2 + Math.cos((ang*Math.PI)/180) * frondR;
+              const y2 = h-trunkH + Math.sin((ang*Math.PI)/180) * frondR * 0.6 - 2;
+              return (
+                <path
+                  key={i}
+                  d={`M ${w/2} ${h-trunkH+2} Q ${(w/2+x2)/2} ${h-trunkH-10}, ${x2} ${y2}`}
+                  stroke={c2} strokeWidth="2.6" fill="none" strokeLinecap="round"
+                  opacity="0.85"
+                />
+              );
+            })}
+            {stage >= 4 && !dead && <circle cx={w/2+frondR*0.35} cy={h-trunkH-2} r={4} fill="var(--amber)"/>}
+          </>
+        )}
+        {stage < 0.01 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
+      </svg>
+    );
+  }
+
+  if (type === 'fern') {
+    const yTop = h - (8 + stage * 10);
+    const segs = stage < 2 ? 3 : stage < 3 ? 4 : stage < 4 ? 6 : 8;
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="plant-svg">
+        {stage >= 1 && <path d={`M ${w/2} ${h} C ${w/2} ${h-(6+stage*4)}, ${w/2} ${yTop}, ${w/2} ${yTop-6}`} stroke={cs} strokeWidth="2.5" fill="none" strokeLinecap="round" />}
+        {stage >= 2 && Array.from({ length: segs }).map((_, i) => {
+          const t = i / (segs-1 || 1);
+          const y = h - (10 + t * (stage * 10 + 6));
+          const x = 6 + stage * 2.2;
+          const fill = i % 3 === 0 ? c1 : i % 3 === 1 ? c2 : c3;
+          return (
+            <g key={i} opacity="0.9">
+              <path d={`M ${w/2} ${y} C ${w/2-x} ${y-4}, ${w/2-x} ${y-10}, ${w/2} ${y-10}`} stroke={fill} strokeWidth="2.1" fill="none" strokeLinecap="round"/>
+              <path d={`M ${w/2} ${y+2} C ${w/2+x} ${y-2}, ${w/2+x} ${y-8}, ${w/2} ${y-8}`} stroke={fill} strokeWidth="2.1" fill="none" strokeLinecap="round"/>
+            </g>
+          );
+        })}
+        {stage >= 4 && !dead && <circle cx={w/2} cy={h-(18+stage*6)} r={4} fill="var(--amber)" opacity="0.95"/>}
+        {stage < 0.01 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
+      </svg>
+    );
+  }
+
+  if (type === 'grain') {
+    const stalkH = 8 + stage * 7;
+    const grains = stage < 2 ? 4 : stage < 3 ? 7 : stage < 4 ? 10 : 13;
+    const topY = h - stalkH;
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="plant-svg">
+        {stage >= 1 && <line x1={w/2} y1={h} x2={w/2} y2={topY} stroke={cs} strokeWidth="2.6" strokeLinecap="round"/>}
+        {stage >= 1 && (
+          <>
+            {Array.from({ length: grains }).map((_, i) => {
+              const t = (i / grains) - 0.5;
+              const px = w/2 + t * (16 + stage * 4);
+              const py = topY + 4 + Math.abs(t) * 6;
+              const gFill = i % 3 === 0 ? c1 : i % 3 === 1 ? c2 : c3;
+              return <ellipse key={i} cx={px} cy={py} rx={4} ry={2.6} fill={gFill} opacity="0.9"/>;
+            })}
+            {stage >= 4 && !dead && <circle cx={w/2} cy={topY+8} r={4} fill="var(--amber)" opacity="0.95"/>}
+          </>
+        )}
+        {stage < 0.01 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
       </svg>
     );
   }
@@ -349,7 +582,7 @@ function PlantSVG({ type, stage, isDead, isCompleted }) {
         <ellipse cx={w/2+8} cy={h-sh+2} rx={9} ry={5} fill={c3} transform={`rotate(40,${w/2+8},${h-sh+2})`}/>
       </>}
       {stage >= 4 && <circle cx={w/2} cy={h-sh-6} r={6} fill={dead ? 'var(--dead)' : 'var(--amber)'}/>}
-      {stage === 0 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
+      {stage < 0.01 && <ellipse cx={w/2} cy={h-7} rx={4} ry={3} fill={c1}/>}
     </svg>
   );
 }
@@ -375,6 +608,7 @@ function Plant({ plant, now, onClick }) {
 function PlantModal({ onConfirm, onCancel }) {
   const [title, setTitle]       = useState('');
   const [duration, setDuration] = useState(30);
+  const [plantType, setPlantType] = useState(PLANT_TYPES[0]);
   const inputRef = useRef(null);
 
   useEffect(() => { inputRef.current && inputRef.current.focus(); }, []);
@@ -382,7 +616,9 @@ function PlantModal({ onConfirm, onCancel }) {
   function submit() {
     const t = title.trim();
     if (!t) return;
-    onConfirm({ title: t, duration });
+    const d = Number(duration);
+    if (!Number.isFinite(d) || d <= 0) return;
+    onConfirm({ title: t, duration: Math.round(d), plantType });
   }
 
   function handleKey(e) {
@@ -403,13 +639,25 @@ function PlantModal({ onConfirm, onCancel }) {
           onKeyDown={handleKey}
           maxLength={40}
         />
-        <label>Müddət</label>
-        <div className="duration-row">
-          {DURATIONS.map(d => (
-            <button key={d} className={`dur-btn${duration === d ? ' active' : ''}`}
-                    onClick={() => setDuration(d)}>{d} dəq</button>
+        <label>Bitki növü</label>
+        <select value={plantType} onChange={e => setPlantType(e.target.value)}>
+          {PLANT_TYPES.map(t => (
+            <option key={t} value={t}>{t}</option>
           ))}
-        </div>
+        </select>
+        <label>Müddət (dəqiqə)</label>
+        <input
+          type="number"
+          min={1}
+          step={1}
+          value={duration}
+          onChange={e => {
+            const next = Number(e.target.value);
+            if (!Number.isFinite(next)) return;
+            // çox böyük rəqəmlər UI-ni poza bilər
+            setDuration(Math.min(2400, Math.max(1, next)));
+          }}
+        />
         <div className="modal-actions">
           <button className="btn-secondary" onClick={onCancel}>İmtina</button>
           <button className="btn-primary"   onClick={submit}>Ək</button>
@@ -420,14 +668,15 @@ function PlantModal({ onConfirm, onCancel }) {
 }
 
 /* ── Detail Panel ── */
-function DetailPanel({ plant, now, onComplete, onClose }) {
+function DetailPanel({ plant, now, onComplete, onDelete, onClose }) {
   const stage    = calcGrowthStage(plant, now);
   const timeLeft = formatTimeLeft(plant, now);
+  const stageShow = Math.round(stage * 10) / 10;
   return (
     <div className="detail-panel" onClick={e => e.stopPropagation()}>
       <h3>{plant.title}</h3>
       <div className="detail-row"><span>NÖV</span><span>{plant.type}</span></div>
-      <div className="detail-row"><span>MƏRHƏLƏ</span><span>{stage} / 4</span></div>
+      <div className="detail-row"><span>MƏRHƏLƏ</span><span>{stageShow} / 4</span></div>
       <div className="detail-row"><span>VAXT</span><span>{timeLeft}</span></div>
       <div className="detail-row">
         <span>VƏZİYYƏT</span>
@@ -437,6 +686,7 @@ function DetailPanel({ plant, now, onComplete, onClose }) {
         {!plant.isCompleted && !plant.isDead && (
           <button className="btn-complete" onClick={() => onComplete(plant.id)}>✓ Tamamla</button>
         )}
+        <button className="btn-delete" onClick={() => onDelete(plant.id)}>✗ Sil</button>
         <button className="btn-close" onClick={onClose}>Bağla</button>
       </div>
     </div>
@@ -491,16 +741,18 @@ function App() {
     if (e.target.closest('.plant-wrap') || e.target.closest('.detail-panel')) return;
     setSelectedId(null);
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width)  * 100;
-    const y = ((e.clientY - rect.top)  / rect.height) * 100;
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const x = clamp(((e.clientX - rect.left) / rect.width)  * 100, 5, 95);
+    // div-in translateY(-100%) davranışına görə y-ni bir az yuxarıdan saxlamaq lazımdır
+    const y = clamp(((e.clientY - rect.top)  / rect.height) * 100, 15, 98);
     setPendingPos({ x, y });
   }, []);
 
-  const handleConfirm = useCallback(({ title, duration }) => {
+  const handleConfirm = useCallback(({ title, duration, plantType }) => {
     if (!pendingPos) return;
     const plantedAt = Date.now();
     const deadline  = plantedAt + duration * 60 * 1000;
-    const type      = PLANT_TYPES[Math.floor(Math.random() * PLANT_TYPES.length)];
+    const type      = plantType || PLANT_TYPES[Math.floor(Math.random() * PLANT_TYPES.length)];
     const newPlant = {
       id: generateId(), type, title,
       growthStage: 0, plantedAt, deadline,
@@ -515,6 +767,11 @@ function App() {
     setPlants(prev => prev.map(p =>
       p.id === id ? { ...p, isCompleted: true, isDead: false, growthStage: 4 } : p
     ));
+  }, []);
+
+  const handleDelete = useCallback(id => {
+    setPlants(prev => prev.filter(p => p.id !== id));
+    setSelectedId(null); // detail-panel-i bağlayırıq
   }, []);
 
   const selectedPlant = selectedId ? plants.find(p => p.id === selectedId) || null : null;
@@ -545,6 +802,7 @@ function App() {
           plant={selectedPlant}
           now={now}
           onComplete={handleComplete}
+          onDelete={handleDelete}
           onClose={() => setSelectedId(null)}
         />
       )}
